@@ -345,6 +345,7 @@ func (m *Message) ReadFrom(r io.Reader) (int64, error) {
 var ErrUnexpectedHeaderEOF = errors.New("unexpected EOF: not enough bytes to read header")
 
 // Decode decodes m.Raw into m.
+// 消息解析
 func (m *Message) Decode() error {
 	// decoding message header
 	buf := m.Raw

@@ -21,6 +21,7 @@ func test(network string) {
 		username = "user"
 		password = "secret"
 	)
+	// 首先Dial
 	conn, err := net.Dial(addr.Network(), addr.String())
 	if err != nil {
 		log.Fatalln("failed to dial conn:", err) // nolint
@@ -31,6 +32,7 @@ func test(network string) {
 		fmt.Println("using WithNoRetransmit for TCP") // nolint
 		options = append(options, stun.WithNoRetransmit)
 	}
+	// 创建一个处理client
 	client, err := stun.NewClient(conn, options...)
 	if err != nil {
 		log.Fatal(err) // nolint

@@ -48,6 +48,7 @@ type Handler func(e Event)
 
 // Event is passed to Handler describing the transaction event.
 // Do not reuse outside Handler.
+// 事件
 type Event struct {
 	TransactionID [TransactionIDSize]byte
 	Message       *Message
@@ -136,6 +137,7 @@ var ErrTransactionTimeOut = errors.New("transaction is timed out")
 // Will return ErrAgentClosed if agent is already closed.
 //
 // It is safe to call Collect concurrently but makes no sense.
+// 回收transactions
 func (a *Agent) Collect(gcTime time.Time) error {
 	toRemove := make([]transactionID, 0, agentCollectCap)
 	a.mux.Lock()
@@ -144,6 +146,7 @@ func (a *Agent) Collect(gcTime time.Time) error {
 		// All transactions should be already closed
 		// during Close() call.
 		a.mux.Unlock()
+		// 已经close
 		return ErrAgentClosed
 	}
 	// Adding all transactions with deadline before gcTime
@@ -152,11 +155,13 @@ func (a *Agent) Collect(gcTime time.Time) error {
 	// timed out transactions.
 	for id, t := range a.transactions {
 		if t.deadline.Before(gcTime) {
+			// 需要回收
 			toRemove = append(toRemove, id)
 		}
 	}
 	// Un-registering timed out transactions.
 	for _, id := range toRemove {
+		// 从agent中删除
 		delete(a.transactions, id)
 	}
 	// Calling handler does not require locked mutex,
@@ -170,12 +175,14 @@ func (a *Agent) Collect(gcTime time.Time) error {
 	}
 	for _, id := range toRemove {
 		event.TransactionID = id
+		// 执行相关的callback
 		h(event)
 	}
 	return nil
 }
 
 // Process incoming message, synchronously passing it to handler.
+// 处理过来的消息
 func (a *Agent) Process(m *Message) error {
 	e := Event{
 		TransactionID: m.TransactionID,

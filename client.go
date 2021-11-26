@@ -15,6 +15,7 @@ import (
 // Dial connects to the address on the named network and then
 // initializes Client on that connection, returning error if any.
 func Dial(network, address string) (*Client, error) {
+	// 用来连接网络
 	conn, err := net.Dial(network, address)
 	if err != nil {
 		return nil, err
@@ -115,41 +116,51 @@ const (
 // provide any API for it, so if you need to read application data, wrap the
 // connection with your (de-)multiplexer and pass the wrapper as conn.
 func NewClient(conn Connection, options ...ClientOption) (*Client, error) {
+	// 与stun server建立一个 client
 	c := &Client{
-		close:       make(chan struct{}),
-		c:           conn,
-		clock:       systemClock(),
-		rto:         int64(defaultRTO),
-		rtoRate:     defaultTimeoutRate,
-		t:           make(map[transactionID]*clientTransaction, 100),
+		close: make(chan struct{}),
+		c:     conn,
+		clock: systemClock(),
+		// rto 超时时间
+		rto:     int64(defaultRTO),
+		rtoRate: defaultTimeoutRate,
+		t:       make(map[transactionID]*clientTransaction, 100),
+		// 最多重试次数
 		maxAttempts: defaultMaxAttempts,
 		closeConn:   true,
 	}
 	for _, o := range options {
+		// 设置选项
 		o(c)
 	}
 	if c.c == nil {
 		return nil, ErrNoConnection
 	}
 	if c.a == nil {
+		// 创建agent
 		c.a = NewAgent(nil)
 	}
+	// 回调，用来处理事件
 	if err := c.a.SetHandler(c.handleAgentCallback); err != nil {
 		return nil, err
 	}
 	if c.collector == nil {
+		// 初始化collector
 		c.collector = &tickerCollector{
 			close: make(chan struct{}),
 			clock: c.clock,
 		}
 	}
+	// 定期执行
 	if err := c.collector.Start(c.rtoRate, func(t time.Time) {
+		// 定期回收trancation
 		closedOrPanic(c.a.Collect(t))
 	}); err != nil {
 		return nil, err
 	}
 	c.wg.Add(1)
 	go c.readUntilClosed()
+	// 释放资源
 	runtime.SetFinalizer(c, clientFinalizer)
 	return c, nil
 }
@@ -189,7 +200,8 @@ type ClientAgent interface {
 
 // Client simulates "connection" to STUN server.
 type Client struct {
-	rto         int64 // time.Duration
+	rto int64 // time.Duration
+	// agent
 	a           ClientAgent
 	c           Connection
 	close       chan struct{}
@@ -275,6 +287,7 @@ type Clock interface {
 
 type systemClockService struct{}
 
+// 获取当前的时间
 func (systemClockService) Now() time.Time { return time.Now() }
 
 func systemClock() systemClockService {
@@ -316,6 +329,7 @@ func (c CloseErr) Error() string {
 
 func (c *Client) readUntilClosed() {
 	defer c.wg.Done()
+	// 新建一个消息
 	m := new(Message)
 	m.Raw = make([]byte, 1024)
 	for {
@@ -324,8 +338,10 @@ func (c *Client) readUntilClosed() {
 			return
 		default:
 		}
+		// 获取消息
 		_, err := m.ReadFrom(c.c)
 		if err == nil {
+			// 对方已经close，直接返回
 			if pErr := c.a.Process(m); errors.Is(pErr, ErrAgentClosed) {
 				return
 			}
@@ -354,6 +370,7 @@ type Collector interface {
 	Close() error
 }
 
+// 实现collector接口
 func (a *tickerCollector) Start(rate time.Duration, f func(now time.Time)) error {
 	t := time.NewTicker(rate)
 	a.wg.Add(1)
@@ -525,18 +542,22 @@ func (c *Client) handleAgentCallback(e Event) {
 		c.mux.Unlock()
 		return
 	}
+	// 找到该transaction
 	t, found := c.t[e.TransactionID]
 	if found {
 		delete(c.t, t.id)
 	}
 	c.mux.Unlock()
+	// 没有找到
 	if !found {
+		// 不是手动停止的
 		if c.handler != nil && !errors.Is(e.Error, ErrTransactionStopped) {
 			c.handler(e)
 		}
 		// Ignoring.
 		return
 	}
+	// 如果没有错误（正常），或者是超过了重试次数
 	if atomic.LoadInt32(&c.maxAttempts) <= t.attempt || e.Error == nil {
 		// Transaction completed.
 		t.handle(e)
@@ -545,6 +566,7 @@ func (c *Client) handleAgentCallback(e Event) {
 	}
 	// Doing re-transmission.
 	t.attempt++
+	// 获取一个buffer
 	b := bufferPool.Get().(*buffer)
 	b.buf = b.buf[:copy(b.buf[:cap(b.buf)], t.raw)]
 	defer bufferPool.Put(b)
@@ -554,10 +576,13 @@ func (c *Client) handleAgentCallback(e Event) {
 		id      = t.id
 	)
 	// Starting client transaction.
+	// 添加到map中
 	if startErr := c.start(t); startErr != nil {
 		c.delete(id)
 		e.Error = startErr
+		// 调用回调
 		t.handle(e)
+		// 返回transaction
 		putClientTransaction(t)
 		return
 	}
@@ -593,6 +618,7 @@ func (c *Client) handleAgentCallback(e Event) {
 // Start starts transaction (if h set) and writes message to server, handler
 // is called asynchronously.
 func (c *Client) Start(m *Message, h Handler) error {
+	// 检查是否初始化
 	if err := c.checkInit(); err != nil {
 		return err
 	}
@@ -607,19 +633,25 @@ func (c *Client) Start(m *Message, h Handler) error {
 		t := acquireClientTransaction()
 		t.id = m.TransactionID
 		t.start = c.clock.Now()
+		// 设置为handler
 		t.h = h
 		t.rto = time.Duration(atomic.LoadInt64(&c.rto))
+		// 没有重试过
 		t.attempt = 0
 		t.raw = append(t.raw[:0], m.Raw...)
 		t.calls = 0
+		// 计算timeout 时间
 		d := t.nextTimeout(t.start)
+		// 放到client map中
 		if err := c.start(t); err != nil {
 			return err
 		}
+		// 放到agent map中
 		if err := c.a.Start(m.TransactionID, d); err != nil {
 			return err
 		}
 	}
+	// 写数据
 	_, err := m.WriteTo(c.c)
 	if err != nil && h != nil {
 		c.delete(m.TransactionID)

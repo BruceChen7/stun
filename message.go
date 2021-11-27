@@ -346,6 +346,31 @@ var ErrUnexpectedHeaderEOF = errors.New("unexpected EOF: not enough bytes to rea
 
 // Decode decodes m.Raw into m.
 // 消息解析
+
+//
+// 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+//
+// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+//
+// |0 0| STUN Message Type | Message Length |
+//
+// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+//
+// | Magic Cookie                           |
+//
+// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+//
+// |
+//
+// | Transaction ID (96 bits)               |
+//
+// |                                        |
+//
+// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+//
+// | Data                                   |
+//
+// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 func (m *Message) Decode() error {
 	// decoding message header
 	buf := m.Raw
@@ -353,22 +378,28 @@ func (m *Message) Decode() error {
 		return ErrUnexpectedHeaderEOF
 	}
 	var (
-		t        = bin.Uint16(buf[0:2])      // first 2 bytes
+		t = bin.Uint16(buf[0:2]) // first 2 bytes
+		// data size
 		size     = int(bin.Uint16(buf[2:4])) // second 2 bytes
 		cookie   = bin.Uint32(buf[4:8])      // last 4 bytes
 		fullSize = messageHeaderSize + size  // len(m.Raw)
 	)
+	// cookie不是
 	if cookie != magicCookie {
 		msg := fmt.Sprintf("%x is invalid magic cookie (should be %x)", cookie, magicCookie)
 		return newDecodeErr("message", "cookie", msg)
 	}
+	// 不是一个完整的数据包
 	if len(buf) < fullSize {
 		msg := fmt.Sprintf("buffer length %d is less than %d (expected message size)", len(buf), fullSize)
 		return newAttrDecodeErr("message", msg)
 	}
 	// saving header data
+	// 获取message type
 	m.Type.ReadValue(t)
+	// data size
 	m.Length = uint32(size)
+	// 获取transaction id
 	copy(m.TransactionID[:], buf[8:messageHeaderSize])
 
 	m.Attributes = m.Attributes[:0]
@@ -376,6 +407,7 @@ func (m *Message) Decode() error {
 		offset = 0
 		b      = buf[messageHeaderSize:fullSize]
 	)
+	// 解析Attributes
 	for offset < size {
 		// checking that we have enough bytes to read header
 		if len(b) < attributeHeaderSize {

@@ -1,3 +1,4 @@
+//go:build !js
 // +build !js
 
 package stun
@@ -957,13 +958,16 @@ func BenchmarkMessage_AddTo(b *testing.B) {
 
 func TestDecode(t *testing.T) {
 	t.Run("Nil", func(t *testing.T) {
+		// 解析消息
 		if err := Decode(nil, nil); !errors.Is(err, ErrDecodeToNil) {
 			t.Errorf("unexpected error: %v", err)
 		}
 	})
 	m := New()
+	// 设置message type
 	m.Type = MessageType{Method: MethodBinding, Class: ClassRequest}
 	m.TransactionID = NewTransactionID()
+	// 设置error code
 	m.Add(AttrErrorCode, []byte{0xff, 0xfe, 0xfa})
 	m.WriteHeader()
 	mDecoded := New()

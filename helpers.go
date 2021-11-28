@@ -74,6 +74,7 @@ func MustBuild(setters ...Setter) *Message {
 
 // Build wraps Message.Build method.
 func Build(setters ...Setter) (*Message, error) {
+	// 新建一个message
 	m := new(Message)
 	if err := m.Build(setters...); err != nil {
 		return nil, err

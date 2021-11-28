@@ -194,6 +194,7 @@ func (a *Agent) Process(m *Message) error {
 		return ErrAgentClosed
 	}
 	h := a.handler
+	// 删除该transactionid
 	delete(a.transactions, m.TransactionID)
 	a.mux.Unlock()
 	h(e)

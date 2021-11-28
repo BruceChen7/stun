@@ -507,6 +507,7 @@ func (c *Client) Do(m *Message, f func(Event)) error {
 		return c.Indicate(m)
 	}
 	h := callbackWaitHandlerPool.Get().(*callbackWaitHandler)
+	// 设置回调
 	h.setCallback(f)
 	defer func() {
 		callbackWaitHandlerPool.Put(h)

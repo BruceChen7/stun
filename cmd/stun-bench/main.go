@@ -73,21 +73,26 @@ func main() { // nolint:gocognit
 			}
 		}()
 	}
+	// 创建context
 	ctx, cancel := context.WithTimeout(context.Background(), *duration)
 	go func() {
 		for sig := range signals {
 			fmt.Println("stopping on", sig)
+			// 用来取消
 			cancel()
 		}
 	}()
+	// 产生transaction id
 	if *realRand {
 		fmt.Println("using crypto/rand as random source for transaction id")
 	}
 	for i := 0; i < *workers; i++ {
+		// 产生一个conn
 		wConn, connErr := net.Dial(*network, fmt.Sprintf("%s:%d", *addr, *port))
 		if connErr != nil {
 			log.Panicln("failed to dial:", wConn)
 		}
+		// 产生一个client
 		c, clientErr := stun.NewClient(wConn)
 		if clientErr != nil {
 			log.Panicln("failed to create client:", clientErr)
@@ -103,8 +108,10 @@ func main() { // nolint:gocognit
 					mathRand.Read(req.TransactionID[:]) // nolint:gosec
 				}
 				req.Type = stun.BindingRequest
+				// 把header填充
 				req.WriteHeader()
 				atomic.AddInt64(&request, 1)
+				// 产生一个bindreq
 				if doErr := c.Do(req, func(event stun.Event) {
 					if event.Error != nil {
 						if !errors.Is(event.Error, stun.ErrTransactionTimeOut) {
@@ -113,6 +120,7 @@ func main() { // nolint:gocognit
 						atomic.AddInt64(&requestErr, 1)
 						return
 					}
+					// 增加一次统计
 					atomic.AddInt64(&requestOK, 1)
 				}); doErr != nil {
 					if !errors.Is(doErr, stun.ErrTransactionExists) {
@@ -126,6 +134,7 @@ func main() { // nolint:gocognit
 	fmt.Println("workers started")
 	<-ctx.Done()
 	stop := time.Now()
+	// 输出rps
 	rps := int(float64(atomic.LoadInt64(&requestOK)) / stop.Sub(start).Seconds())
 	fmt.Println("rps:", rps)
 	if reqErr := atomic.LoadInt64(&requestErr); requestErr != 0 {

@@ -32,6 +32,7 @@ func main() {
 		if getErr := xorAddr.GetFrom(res.Message); getErr != nil {
 			log.Fatalln(getErr)
 		}
+		// 返回绑定的地址
 		fmt.Println(xorAddr)
 	}); err != nil {
 		log.Fatal("do:", err)

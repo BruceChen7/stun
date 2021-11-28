@@ -56,6 +56,7 @@ func Decode(data []byte, m *Message) error {
 		return ErrDecodeToNil
 	}
 	m.Raw = append(m.Raw[:0], data...)
+	// 解析消息
 	return m.Decode()
 }
 
@@ -136,6 +137,7 @@ func (m *Message) Reset() {
 
 // grow ensures that internal buffer has n length.
 func (m *Message) grow(n int) {
+	// 用来扩容
 	if len(m.Raw) >= n {
 		return
 	}
@@ -271,12 +273,15 @@ func (m *Message) WriteLength() {
 
 // WriteHeader writes header to underlying buffer. Not goroutine-safe.
 func (m *Message) WriteHeader() {
+	// 扩大空间
 	m.grow(messageHeaderSize)
 	_ = m.Raw[:messageHeaderSize] // early bounds check to guarantee safety of writes below
 
 	m.WriteType()
 	m.WriteLength()
-	bin.PutUint32(m.Raw[4:8], magicCookie)               // magic cookie
+	// 写下cookie
+	bin.PutUint32(m.Raw[4:8], magicCookie) // magic cookie
+	// 写下transaction id
 	copy(m.Raw[8:messageHeaderSize], m.TransactionID[:]) // transaction ID
 }
 
@@ -408,13 +413,16 @@ func (m *Message) Decode() error {
 		b      = buf[messageHeaderSize:fullSize]
 	)
 	// 解析Attributes
+	// 数据size
 	for offset < size {
 		// checking that we have enough bytes to read header
+		// 剩余的attribute 不够
 		if len(b) < attributeHeaderSize {
 			msg := fmt.Sprintf("buffer length %d is less than %d (expected header size)", len(b), attributeHeaderSize)
 			return newAttrDecodeErr("header", msg)
 		}
 		var (
+			// 解析的过程
 			a = RawAttribute{
 				Type:   compatAttrType(bin.Uint16(b[0:2])), // first 2 bytes
 				Length: bin.Uint16(b[2:4]),                 // second 2 bytes
@@ -542,6 +550,7 @@ type MessageType struct {
 
 // AddTo sets m type to t.
 func (t MessageType) AddTo(m *Message) error {
+	// 设置type
 	m.SetType(t)
 	return nil
 }

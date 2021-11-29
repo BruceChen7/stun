@@ -112,12 +112,14 @@ func (a *Agent) Start(id [TransactionIDSize]byte, deadline time.Time) error {
 	a.mux.Lock()
 	defer a.mux.Unlock()
 	if a.closed {
+		// agent closed
 		return ErrAgentClosed
 	}
 	_, exists := a.transactions[id]
 	if exists {
 		return ErrTransactionExists
 	}
+	// 找到agent
 	a.transactions[id] = agentTransaction{
 		id:       id,
 		deadline: deadline,

@@ -57,6 +57,7 @@ func main() {
 	case 3:
 		logLevel = logging.LogLevelTrace
 	}
+	// 设置logger
 	log = logging.NewDefaultLeveledLoggerForScope("", logLevel, os.Stdout)
 
 	if err := mappingTests(*addrStrPtr); err != nil {
@@ -69,6 +70,7 @@ func main() {
 
 // RFC5780: 4.3.  Determining NAT Mapping Behavior
 func mappingTests(addrStr string) error {
+	// server 地址
 	mapTestConn, err := connect(addrStr)
 	if err != nil {
 		log.Warnf("Error creating STUN connection: %s\n", err.Error())
@@ -86,10 +88,12 @@ func mappingTests(addrStr string) error {
 
 	// Parse response message for XOR-MAPPED-ADDRESS and make sure OTHER-ADDRESS valid
 	resps1 := parse(resp)
+	// 响应非正常， 不支持nat
 	if resps1.xorAddr == nil || resps1.otherAddr == nil {
 		log.Info("Error: NAT discovery feature not supported by this server")
 		return errNoOtherAddress
 	}
+	// 解析
 	addr, err := net.ResolveUDPAddr("udp4", resps1.otherAddr.String())
 	if err != nil {
 		log.Infof("Failed resolving OTHER-ADDRESS: %v\n", resps1.otherAddr)
@@ -264,6 +268,7 @@ func connect(addrStr string) (*stunServerConn, error) {
 	log.Infof("Local address: %s\n", c.LocalAddr())
 	log.Infof("Remote address: %s\n", addr.String())
 
+	// 消息的数据源
 	mChan := listen(c)
 
 	return &stunServerConn{
@@ -280,6 +285,7 @@ func (c *stunServerConn) roundTrip(msg *stun.Message, addr net.Addr) (*stun.Mess
 	log.Infof("Sending to %v: (%v bytes)\n", addr, msg.Length+messageHeaderSize)
 	log.Debugf("%v\n", msg)
 	for _, attr := range msg.Attributes {
+		// 打印attribute
 		log.Debugf("\t%v (l=%v)\n", attr, attr.Length)
 	}
 	_, err := c.conn.WriteTo(msg.Raw, addr)
@@ -308,6 +314,7 @@ func listen(conn *net.UDPConn) (messages chan *stun.Message) {
 		for {
 			buf := make([]byte, 1024)
 
+			// 用来获取udp消息
 			n, addr, err := conn.ReadFromUDP(buf)
 			if err != nil {
 				close(messages)

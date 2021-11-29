@@ -21,6 +21,7 @@ type URI struct {
 }
 
 func (u URI) String() string {
+	// 用来打印uri
 	if u.Port != 0 {
 		return fmt.Sprintf("%s:%s:%d",
 			u.Scheme, u.Host, u.Port,

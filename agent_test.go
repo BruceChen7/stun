@@ -7,18 +7,22 @@ import (
 )
 
 func TestAgent_ProcessInTransaction(t *testing.T) {
+	// 新生成一个messsage
 	m := New()
 	a := NewAgent(func(e Event) {
 		if e.Error != nil {
 			t.Errorf("got error: %s", e.Error)
 		}
+		// 回调
 		if !e.Message.Equal(m) {
 			t.Errorf("%s (got) != %s (expected)", e.Message, m)
 		}
 	})
+	// 碎锦生成transaction id
 	if err := m.NewTransactionID(); err != nil {
 		t.Fatal(err)
 	}
+	// 记录该transaction id
 	if err := a.Start(m.TransactionID, time.Time{}); err != nil {
 		t.Fatal(err)
 	}

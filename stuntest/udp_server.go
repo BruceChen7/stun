@@ -56,6 +56,7 @@ func NewUDPServer(
 				return
 			}
 
+			// 将响应返回
 			_, err = udpConn.WriteTo(resp, addr)
 			if err != nil {
 				errCh <- err
@@ -74,6 +75,7 @@ func NewUDPServer(
 		default:
 		}
 
+		// 关闭连接
 		err := udpConn.Close()
 		if err != nil {
 			t.Fatal(err) // nolint

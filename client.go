@@ -448,6 +448,7 @@ func (s *callbackWaitHandler) HandleEvent(e Event) {
 	if s.callback == nil {
 		panic("s.callback is nil") // nolint
 	}
+	// 用来执行回调
 	s.callback(e)
 	s.processed = true
 	s.cond.Broadcast()
@@ -479,7 +480,13 @@ func (s *callbackWaitHandler) setCallback(f func(event Event)) {
 var callbackWaitHandlerPool = sync.Pool{ // nolint:gochecknoglobals
 	New: func() interface{} {
 		return &callbackWaitHandler{
-			cond: sync.NewCond(new(sync.Mutex)),
+			handler: func(e Event) {
+			},
+			callback: func(event Event) {
+			},
+			// 生成条件变量
+			cond:      sync.NewCond(new(sync.Mutex)),
+			processed: false,
 		}
 	},
 }

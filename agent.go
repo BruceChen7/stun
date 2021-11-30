@@ -199,6 +199,7 @@ func (a *Agent) Process(m *Message) error {
 	// 删除该transactionid
 	delete(a.transactions, m.TransactionID)
 	a.mux.Unlock()
+	// 用来清理
 	h(e)
 	return nil
 }
@@ -227,7 +228,9 @@ func (a *Agent) Close() error {
 		return ErrAgentClosed
 	}
 	for _, t := range a.transactions {
+		// 事件
 		e.TransactionID = t.id
+		// 用来通知回调
 		a.handler(e)
 	}
 	a.transactions = nil

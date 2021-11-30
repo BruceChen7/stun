@@ -41,6 +41,7 @@ func main() { // nolint:gocognit
 		requestErr int64
 	)
 	if *cpuProfile != "" {
+		// 创建目录
 		f, createErr := os.Create(*cpuProfile)
 		if createErr != nil {
 			log.Fatalln("failed to create cpu profile output file:", createErr)

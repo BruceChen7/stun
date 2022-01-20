@@ -16,6 +16,7 @@ const (
 // XORMappedAddress implements XOR-MAPPED-ADDRESS attribute.
 //
 // RFC 5389 Section 15.2
+// 外网映射的ip地址
 type XORMappedAddress struct {
 	IP   net.IP
 	Port int
@@ -50,6 +51,7 @@ func (a XORMappedAddress) AddToAs(m *Message, t AttrType) error {
 		family = familyIPv4
 		ip     = a.IP
 	)
+	// IPv6的地址
 	if len(a.IP) == net.IPv6len {
 		if isIPv4(ip) {
 			ip = ip[12:16] // like in ip.To4()

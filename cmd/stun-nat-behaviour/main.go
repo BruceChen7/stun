@@ -15,9 +15,13 @@ import (
 )
 
 type stunServerConn struct {
-	conn        net.PacketConn
-	LocalAddr   net.Addr
-	RemoteAddr  *net.UDPAddr
+	// 直接写的连接
+	conn net.PacketConn
+	// 本地测试的地址和端口号
+	LocalAddr net.Addr
+	// stun server udp ip addr
+	RemoteAddr *net.UDPAddr
+	// public ip address
 	OtherAddr   *net.UDPAddr
 	messageChan chan *stun.Message
 }
@@ -47,6 +51,7 @@ func main() {
 	flag.Parse()
 
 	var logLevel logging.LogLevel
+	//  loglevel
 	switch *verbose {
 	case 0:
 		logLevel = logging.LogLevelWarn
@@ -70,7 +75,7 @@ func main() {
 
 // RFC5780: 4.3.  Determining NAT Mapping Behavior
 func mappingTests(addrStr string) error {
-	// server 地址
+	// 连接server
 	mapTestConn, err := connect(addrStr)
 	if err != nil {
 		log.Warnf("Error creating STUN connection: %s\n", err.Error())
@@ -93,7 +98,7 @@ func mappingTests(addrStr string) error {
 		log.Info("Error: NAT discovery feature not supported by this server")
 		return errNoOtherAddress
 	}
-	// 解析
+	// 解析upd响应的nat 外网地址
 	addr, err := net.ResolveUDPAddr("udp4", resps1.otherAddr.String())
 	if err != nil {
 		log.Infof("Failed resolving OTHER-ADDRESS: %v\n", resps1.otherAddr)
@@ -103,6 +108,7 @@ func mappingTests(addrStr string) error {
 	log.Infof("Received XOR-MAPPED-ADDRESS: %v\n", resps1.xorAddr)
 
 	// Assert mapping behavior
+	// 直接在外网上, 返回的地址和本地地址相同
 	if resps1.xorAddr.String() == mapTestConn.LocalAddr.String() {
 		log.Warn("=> NAT mapping behavior: endpoint independent (no NAT)")
 		return nil
@@ -110,7 +116,9 @@ func mappingTests(addrStr string) error {
 
 	// Test II: Send binding request to the other address but primary port
 	log.Info("Mapping Test II: Send binding request to the other address but primary port")
+	// 获取client 外网地址
 	oaddr := *mapTestConn.OtherAddr
+	// set port
 	oaddr.Port = mapTestConn.RemoteAddr.Port
 	resp, err = mapTestConn.roundTrip(request, &oaddr)
 	if err != nil {
@@ -120,6 +128,7 @@ func mappingTests(addrStr string) error {
 	// Assert mapping behavior
 	resps2 := parse(resp)
 	log.Infof("Received XOR-MAPPED-ADDRESS: %v\n", resps2.xorAddr)
+	// 两者响应的地址是一样的，那么是endpoint independent
 	if resps2.xorAddr.String() == resps1.xorAddr.String() {
 		log.Warn("=> NAT mapping behavior: endpoint independent")
 		return nil
@@ -145,6 +154,7 @@ func mappingTests(addrStr string) error {
 }
 
 // RFC5780: 4.4.  Determining NAT Filtering Behavior
+// 过滤测试
 func filteringTests(addrStr string) error {
 	mapTestConn, err := connect(addrStr)
 	if err != nil {
@@ -156,6 +166,7 @@ func filteringTests(addrStr string) error {
 	log.Info("Filtering Test I: Regular binding request")
 	request := stun.MustBuild(stun.TransactionID, stun.BindingRequest)
 
+	// 直接连接 stun server
 	resp, err := mapTestConn.roundTrip(request, mapTestConn.RemoteAddr)
 	if err != nil || errors.Is(err, errTimedOut) {
 		return err
@@ -255,12 +266,14 @@ func parse(msg *stun.Message) (ret struct {
 // Given an address string, returns a StunServerConn
 func connect(addrStr string) (*stunServerConn, error) {
 	log.Infof("connecting to STUN server: %s\n", addrStr)
+	// 获取stun server的ip地址
 	addr, err := net.ResolveUDPAddr("udp4", addrStr)
 	if err != nil {
 		log.Warnf("Error resolving address: %s\n", err.Error())
 		return nil, err
 	}
 
+	// 自己监听
 	c, err := net.ListenUDP("udp4", nil)
 	if err != nil {
 		return nil, err
@@ -268,7 +281,7 @@ func connect(addrStr string) (*stunServerConn, error) {
 	log.Infof("Local address: %s\n", c.LocalAddr())
 	log.Infof("Remote address: %s\n", addr.String())
 
-	// 消息的数据源
+	// 用来接受udp server
 	mChan := listen(c)
 
 	return &stunServerConn{
@@ -281,6 +294,7 @@ func connect(addrStr string) (*stunServerConn, error) {
 
 // Send request and wait for response or timeout
 func (c *stunServerConn) roundTrip(msg *stun.Message, addr net.Addr) (*stun.Message, error) {
+	// 获取transaction id
 	_ = msg.NewTransactionID()
 	log.Infof("Sending to %v: (%v bytes)\n", addr, msg.Length+messageHeaderSize)
 	log.Debugf("%v\n", msg)
@@ -288,6 +302,7 @@ func (c *stunServerConn) roundTrip(msg *stun.Message, addr net.Addr) (*stun.Mess
 		// 打印attribute
 		log.Debugf("\t%v (l=%v)\n", attr, attr.Length)
 	}
+	// 直接发送udp 包
 	_, err := c.conn.WriteTo(msg.Raw, addr)
 	if err != nil {
 		log.Warnf("Error sending request to %v\n", addr)
@@ -302,6 +317,7 @@ func (c *stunServerConn) roundTrip(msg *stun.Message, addr net.Addr) (*stun.Mess
 		}
 		return m, nil
 	case <-time.After(time.Duration(*timeoutPtr) * time.Second):
+		// 超时
 		log.Infof("Timed out waiting for response from server %v\n", addr)
 		return nil, errTimedOut
 	}
